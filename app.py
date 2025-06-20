@@ -1,43 +1,37 @@
-from flask import Flask, request, jsonify
-from reelscraper import ReelScraper, ReelMultiScraper
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List
+from reelscraper import ReelScraper
 from reelscraper.utils import LoggerManager
-import os
 from datetime import datetime, timezone
+import os
+import re
 
-app = Flask(__name__)
+app = FastAPI()
 
-# Configure logger
+# Logger and scraper setup
 logger = LoggerManager()
-
-# Create a single scraper instance
 single_scraper = ReelScraper(timeout=30, proxy=None, logger_manager=logger)
 
-@app.route("/v1/fetch-instagram-post", methods=["POST"])
-def fetch_instagram_post():
+# Request model
+class PostRequest(BaseModel):
+    username: str
+    post_links: List[str]
+
+@app.post("/v1/fetch-instagram-post")
+def fetch_instagram_post(payload: PostRequest):
     try:
-        data = request.get_json()
-        username = data.get("username")
-        post_links = data.get("post_links")
+        username = payload.username
+        post_links = payload.post_links
 
-        if not username or not post_links or not isinstance(post_links, list):
-            return jsonify({
-                "success": False,
-                "error": "username and post_links (list) are required",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }), 400
-
-        # Scrape latest posts from user
         reels = single_scraper.get_user_reels(username, max_posts=10)
         if not reels:
-            return jsonify({
-                "success": False,
-                "error": f"No reels found for user '{username}'",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }), 404
+            raise HTTPException(
+                status_code=404,
+                detail=f"No reels found for user '{username}'"
+            )
 
-        # Match with provided post links (by shortcode)
         def extract_shortcode(url):
-            import re
             patterns = [r'/reel/([^/?]+)', r'/p/([^/?]+)']
             for pattern in patterns:
                 match = re.search(pattern, url)
@@ -48,11 +42,10 @@ def fetch_instagram_post():
         target_shortcodes = {extract_shortcode(link): link for link in post_links if extract_shortcode(link)}
         matched = [reel for reel in reels if reel.get('shortcode') in target_shortcodes]
 
-        # Attach the original target link to each matched post
         for post in matched:
             post['target_link'] = target_shortcodes.get(post.get('shortcode'))
 
-        return jsonify({
+        return {
             "success": True,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "data": {
@@ -62,36 +55,33 @@ def fetch_instagram_post():
                 "matched_posts_count": len(matched),
                 "matched_posts": matched
             }
-        })
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": f"Internal server error: {str(e)}",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }), 500
+        }
 
-@app.route("/v1/health", methods=["GET"])
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@app.get("/v1/health")
 def health_check():
-    return jsonify({
+    return {
         "success": True,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "data": {"status": "healthy", "service": "reelscraper-api"}
-    })
+    }
 
-@app.route("/", methods=["GET"])
+@app.get("/")
 def home():
-    return jsonify({
+    return {
         "success": True,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "data": {
-            "message": "Instagram Post Match API (reelscraper) is running!",
+            "message": "Instagram Post Match API (FastAPI) is running!",
             "documentation": {
                 "fetch_posts": "POST /v1/fetch-instagram-post",
-                "health": "GET /v1/health"
+                "health": "GET /v1/health",
+                "swagger_docs": "/docs"
             }
         }
-    })
-
-if __name__ == "__main__":
-    port = int(os.getenv('PORT', 5000))
-    app.run(host="0.0.0.0", port=port) 
+    }
