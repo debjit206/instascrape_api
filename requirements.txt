@@ -1,3 +1,3 @@
-flask
-reelscraper 
-gunicorn
+fastapi
+uvicorn
+reelscraper
