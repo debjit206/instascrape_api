@@ -14,7 +14,8 @@ app = FastAPI()
 logger = LoggerManager()
 
 # Proxy credentials
-proxy_url = "http://customer-j2t6521216:ni0kkm6q@proxy.goproxy.com:30000"
+#proxy_url = "http://customer-j2t6521216:ni0kkm6q@proxy.goproxy.com:30000"
+proxy_url = "customer-j2t6521216:ni0kkm6q@proxy.goproxy.com:30000"  # <-- NO http://
 proxy_dict = {
     "http": proxy_url,
     "https": proxy_url
