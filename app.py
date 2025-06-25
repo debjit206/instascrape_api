@@ -20,7 +20,7 @@ proxy_dict = {
     "https": proxy_url
 }
 
-single_scraper = ReelScraper(timeout=30, proxy=proxy_dict, logger_manager=logger)
+single_scraper = ReelScraper(timeout=30, proxy=proxy_url, logger_manager=logger)
 
 # Request model
 class PostRequest(BaseModel):
