@@ -1,17 +1,42 @@
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
-from reelscraper import ReelScraper
 from reelscraper.utils import LoggerManager
+from reelscraper.core.reel_scraper import ReelScraper as BaseReelScraper
+from reelscraper.core.instagram_api import InstagramAPI
 from datetime import datetime, timezone
-import os
 import re
 
 app = FastAPI()
 
+# Custom scraper class with proxy and headers
+class PatchedReelScraper(BaseReelScraper):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        proxy_url = "http://customer-j2t6521216:ni0kkm6q@proxy.goproxy.com:30000"
+        proxy_dict = {
+            "http": proxy_url,
+            "https": proxy_url
+        }
+
+        self.api = InstagramAPI(
+            timeout=kwargs.get("timeout", 30),
+            proxy=proxy_dict,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/114.0.0.0 Safari/537.36"
+                )
+            },
+            logger_manager=kwargs.get("logger_manager", None)
+        )
+
 # Logger and scraper setup
 logger = LoggerManager()
-single_scraper = ReelScraper(timeout=30, proxy=None, logger_manager=logger)
+single_scraper = PatchedReelScraper(timeout=30, logger_manager=logger)
 
 # Request model
 class PostRequest(BaseModel):
